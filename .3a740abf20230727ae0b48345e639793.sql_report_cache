@@ -1,0 +1,97 @@
+SQL Re-Order Check Error:  Please check whether the field order of [ [34;1m  admin_pages [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","admin_pages","admin_pages","path","icon","parent"] [0m
+[31;1m  - ["id","name","path","icon","parent","admin_pages","admin_pages"] [0m
+
+  Please check whether the field order of [ [34;1m  admin_users [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","password","username","username","username","created"] [0m
+[31;1m  - ["id","username","password","created","username","username"] [0m
+
+  Please check whether the field order of [ [34;1m  connections [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","connection_type","connections","connections","from","from_type","to","to_type"] [0m
+[31;1m  - ["id","connection_type","name","from_type","from","to_type","to","connections","connections"] [0m
+
+  Please check whether the field order of [ [34;1m  data_entries [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","data_entries","data_entries","type","source"] [0m
+[31;1m  - ["id","name","type","source","data_entries","data_entries"] [0m
+
+  Please check whether the field order of [ [34;1m  data_sources [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","data_sources","data_sources","type"] [0m
+[31;1m  - ["id","name","type","data_sources","data_sources"] [0m
+
+  Please check whether the field order of [ [34;1m  enum_types [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","enum_id","name","enum_types"] [0m
+[31;1m  - ["id","name","enum_id","enum_types"] [0m
+
+  Please check whether the field order of [ [34;1m  input_values [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","is_source","input_values","input_values","value","value","name"] [0m
+[31;1m  - ["id","value","is_source","name","value","input_values","input_values"] [0m
+
+  Please check whether the field order of [ [34;1m  item_enums [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["item_id","enum_id","item_enums"] [0m
+[31;1m  - ["item_id","enum_id","item_id","item_enums"] [0m
+
+  Please check whether the field order of [ [34;1m  orm_graph_element_types [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","orm_graph_element_types","orm_graph_element_types","component_index"] [0m
+[31;1m  - ["id","name","component_index","orm_graph_element_types","orm_graph_element_types"] [0m
+
+  Please check whether the field order of [ [34;1m  request_authorization [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","controller","request_authorization","request_authorization","method","task","input"] [0m
+[31;1m  - ["id","controller","method","task","input","request_authorization","request_authorization"] [0m
+
+  Please check whether the field order of [ [34;1m  session_states [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","active_timeout","auth_input","auth_task","session_states","session_states","inactive_timeout","parent"] [0m
+[31;1m  - ["id","name","inactive_timeout","active_timeout","auth_task","parent","auth_input","session_states","session_states"] [0m
+
+  Please check whether the field order of [ [34;1m  translatable_columns [0m ] table is correct.
+
+[32;1m  Expected result: + [0m
+[31;1m  Actual result:   - [0m
+
+[32;1m  + ["id","name","table","translatable_columns"] [0m
+[31;1m  - ["id","table","name","translatable_columns"] [0m
+
+Check that the number of tables that do not meet the configuration rules is [ 12 ] .

@@ -1,0 +1,314 @@
+#!/usr/bin/env php -q
+<?php
+
+define('SQL_PATH', dirname(__DIR__) . DIRECTORY_SEPARATOR . 'mysql' . DIRECTORY_SEPARATOR . 'mysql.sql');
+define('CACHE_FILE_PATH', getcwd() . '/.' . md5_file(SQL_PATH) . '.sql_report_cache');
+const ERROR_CODE        = 0;
+const SUCCESS_CODE      = 1;
+const SUCCESS_MESSAGE   = 'Good job!';
+const REMAINING_COLUMNS = '...';
+const CONFIG            = [
+    'sql_file_path'     => SQL_PATH,
+    'similar_adjacent'  => true,
+    'use_cache'         => true,
+    'sql_order_rules'   => [
+        'id|_id',
+        // 'type|_type',
+        // 'category|_category',
+        // 'status',
+        REMAINING_COLUMNS, // This is the only place where similar adjacent rules are used
+        'created_at',
+        'updated_at',
+        'deleted_at',
+    ],
+    'ignore_tables' => [
+//         'addresses',
+    ],
+];
+
+if (isset($argv[1]) && $argv[1] === '--clean-cache') {
+    cleanCache();
+}
+
+analyse();
+
+function analyse(): void
+{
+    $sql_order_rule_arrays = loadConfig();
+    $table_array           = loadSqlFile(CONFIG['sql_file_path']);
+    $sort_table_array      = sortTableColumns($table_array, $sql_order_rule_arrays);
+    checkCacheExist();
+    report($table_array, $sort_table_array);
+}
+function cleanCache($output = true): void
+{
+    if (is_dir(getcwd())) {
+        $dir_array = scandir(getcwd());
+
+        if (is_array($dir_array)) {
+            foreach ($dir_array as $dir_path) {
+                if (isset(pathinfo($dir_path)['extension']) && pathinfo($dir_path)['extension'] === 'sql_report_cache') {
+                    unlink($dir_path);
+                }
+            }
+        }
+    }
+
+    if ($output) {
+        handleExit('Cache has been cleared.', SUCCESS_CODE);
+    }
+}
+function checkCacheExist(): void
+{
+    if (file_exists(CACHE_FILE_PATH && file_exists(SQL_PATH) && basename(CACHE_FILE_PATH, 'sql_report_cache') === '.' . md5_file(SQL_PATH))) {
+        if ($line = fopen(CACHE_FILE_PATH, 'r')) {
+            $exit_code = str_contains(fgets($line), SUCCESS_MESSAGE) ? SUCCESS_CODE : ERROR_CODE;
+        } else {
+            $exit_code = ERROR_CODE;
+        }
+
+        echo file_get_contents(CACHE_FILE_PATH);
+        exit($exit_code);
+    } else {
+        cleanCache(false);
+    }
+}
+function loadConfig(): array
+{
+    if (CONFIG === []) {
+        handleExit('No check program was started.', ERROR_CODE);
+    }
+
+    $sql_order_rule_arrays = [];
+
+    if (isset(CONFIG['sql_order_rules'])) {
+        foreach (CONFIG['sql_order_rules'] as $key => $rule_field) {
+            if (str_contains($rule_field, '|')) {
+                array_splice($sql_order_rule_arrays, $key + count($sql_order_rule_arrays), 0, explode('|', $rule_field));
+            } else {
+                $sql_order_rule_arrays[] = $rule_field;
+            }
+        }
+    }
+
+    return $sql_order_rule_arrays;
+}
+function loadSqlFile(string $sql_file_path): array
+{
+    $schemas = [];
+
+    if (!file_exists($sql_file_path)) {
+        handleExit('Please check you config file is exists', ERROR_CODE);
+    }
+
+    $handle     = fopen($sql_file_path, 'r');
+    $n          = 0;
+    $table_name = null;
+
+    while (($line = fgets($handle, 4096)) !== false) {
+        if ($line === '' || strncmp($line, '--', 2) === 0) {
+            continue;
+        }
+
+        // Table name for DDL
+        if (preg_match_all('/^CREATE TABLE[^\n]`(\w+)`[^\n]+[(]$/i', $line, $matches_tables) > 0) {
+            $n++;
+
+            foreach ($matches_tables[1] as $match_table) {
+                $table_name                      = $match_table;
+                $schemas['tables'][$match_table] = [];
+            }
+        }
+
+        // Column name for DDL
+        if (preg_match_all('/^[^\n]+`(\w+)`[^\n]+\w/i', $line, $matches_columns) > 0) {
+            foreach ($matches_columns[1] as $match_columns) {
+                if ($table_name !== null) {
+                    $schemas['tables'][$table_name][] = $match_columns;
+                }
+            }
+        }
+    }
+
+    if (!feof($handle)) {
+        echo "Error: unexpected fgets() fail\n";
+    }
+
+    fclose($handle);
+
+    return $schemas;
+}
+function sortTableColumns($table_array, $sql_order_rule_arrays): array
+{
+    $reorder_table_array   = [];
+    $remaining_columns     = [];
+
+    foreach ($table_array as $table) {
+        foreach ($table as $table_name => $columns) {
+            if (isset(CONFIG['ignore_tables']) && in_array($table_name, CONFIG['ignore_tables'], true)) {
+                continue;
+            }
+
+            foreach ($columns as $column) {
+                if (in_array($column, $sql_order_rule_arrays, true) || ruleArrayContains($column, $sql_order_rule_arrays)) {
+                    $reorder_table_array[$table_name][] = $column;
+                } else {
+                    $remaining_columns[$table_name][] = $column;
+                }
+            }
+        }
+    }
+
+    return configColumnsSort($reorder_table_array, $remaining_columns, $sql_order_rule_arrays);
+}
+function configColumnsSort(array $reorder_table_array, array $remaining_columns, array $sql_order_rule_arrays): array
+{
+    $remaining_index          = array_search(REMAINING_COLUMNS, $sql_order_rule_arrays, true);
+    $remaining_index_position = [];
+    $set_similar_adjacent     = CONFIG['similar_adjacent'] ?? true;
+    $sort_table_array         = [];
+
+    if ($remaining_index) {
+        $sql_order_rule_parts = array_slice($sql_order_rule_arrays, 0, $remaining_index);
+    }
+
+    foreach ($reorder_table_array as $need_move_table_name => $need_move_table_columns) {
+        $num = 0;
+
+        foreach ($need_move_table_columns as $need_move_table_column) {
+            if (isset($sql_order_rule_parts)) {
+                foreach ($sql_order_rule_parts as $sql_order_rule_part) {
+                    if ($need_move_table_column === $sql_order_rule_part || (str_contains($need_move_table_column, $sql_order_rule_part) && strstr($sql_order_rule_part, '_'))) {
+                        $remaining_index_position[$need_move_table_name]  =  ++$num;
+                    }
+                }
+            }
+
+            foreach ($sql_order_rule_arrays as $order_rule_index => $order_rule_field) {
+                $n = $order_rule_index;
+
+                while (isset($sort_table_array[$need_move_table_name][$n])) {
+                    $n++;
+                }
+
+                if ($need_move_table_column === $order_rule_field || (str_contains($need_move_table_column, $order_rule_field) && strstr($order_rule_field, '_'))) {
+                    $sort_table_array[$need_move_table_name][$n] = $need_move_table_column;
+                }
+            }
+        }
+
+        array_splice($sort_table_array[$need_move_table_name], $remaining_index_position[$need_move_table_name] ?? 0, 0, REMAINING_COLUMNS);
+
+        $sort_table_array[$need_move_table_name] = array_values(array_unique($sort_table_array[$need_move_table_name]));
+        $remaining_columns_index                 = array_search(REMAINING_COLUMNS, $sort_table_array[$need_move_table_name], true);
+
+        if (is_int($remaining_columns_index)) {
+            if ($set_similar_adjacent &&  isset($remaining_columns[$need_move_table_name])) {
+                similarSort($remaining_columns[$need_move_table_name]);
+            }
+            array_splice($sort_table_array[$need_move_table_name], $remaining_columns_index, 1, $remaining_columns[$need_move_table_name] ?? []);
+        }
+    }
+
+    return $sort_table_array;
+}
+function ruleArrayContains(string $column, array $sql_order_rule_arrays): bool
+{
+    foreach ($sql_order_rule_arrays as $sql_order_rule_field) {
+        if (strstr($sql_order_rule_field, '_') && str_contains($column, $sql_order_rule_field)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+function similarSort(array &$sortable_table_columns): bool
+{
+    if (!is_iterable($sortable_table_columns)) {
+        return false;
+    }
+
+    $similar_array                  = [];
+    $key                            = null;
+    $sortable_table_column_prefixes = [];
+    $sortable_table_column_string   = '';
+
+    foreach ($sortable_table_columns as $sortable_table_index => $sortable_table_column) {
+        if (preg_match('/^([a-z]+)[0-9]{0,}[_\w]?/', $sortable_table_column, $matches_sortable_column) > 0) {
+            $sortable_table_column_string .= $matches_sortable_column[0] . ' ';
+            $sortable_table_column_prefixes[$sortable_table_index] = $matches_sortable_column[1];
+        } else {
+            if ($key === null) {
+                $key = $sortable_table_index;
+            }
+        }
+    }
+
+    foreach ($sortable_table_columns as $sortable_table_index => $sortable_table_column) {
+        if (substr_count($sortable_table_column_string, $sortable_table_column_prefixes[$sortable_table_index]) >= 2) {
+            $similar_array[$sortable_table_index] = $sortable_table_column;
+        }
+    }
+
+    if ($similar_array !== []) {
+        foreach ($similar_array as $similar_column_index => $similar_column) {
+            unset($sortable_table_columns[$similar_column_index]);
+        }
+
+        sort($similar_array, SORT_NATURAL);
+        array_splice($sortable_table_columns, $key + 1, 0, $similar_array);
+    }
+
+    return true;
+}
+function report(array $original_tables, array $sort_tables): void
+{
+    $report_tables = [];
+
+    foreach ($original_tables as $original_table) {
+        foreach ($original_table as $original_table_name => $original_table_columns) {
+            if (isset($sort_tables[$original_table_name]) && $sort_tables[$original_table_name] !== $original_table_columns) {
+                $report_tables[$original_table_name][0] = $sort_tables[$original_table_name];
+                $report_tables[$original_table_name][1] = $original_table_columns;
+            }
+        }
+    }
+
+    if ($report_tables === []) {
+        if (isset(CONFIG['use_cache']) && CONFIG['use_cache']) {
+            writeCache(SUCCESS_MESSAGE);
+        }
+
+        handleExit(SUCCESS_MESSAGE, SUCCESS_CODE);
+    }
+
+    $report_message   = 'SQL Re-Order Check Error:';
+    $report_table_num = 0;
+
+    foreach ($report_tables as $report_table_name => $report_table) {
+        $report_table_num++;
+        $report_message .= '  Please check whether the field order of [ ' . "\033[34;1m  " . $report_table_name . " \033[0m" . ' ] table is correct.' . PHP_EOL . PHP_EOL;
+        $report_message .= "\033[32;1m  " . 'Expected result: +' . " \033[0m" . PHP_EOL;
+        $report_message .= "\033[31;1m  " . 'Actual result:   -' . " \033[0m" . PHP_EOL . PHP_EOL;
+        $report_message .= "\033[32;1m  " . '+ ' . json_encode($report_table[0]) . " \033[0m" . PHP_EOL;
+        $report_message .= "\033[31;1m  " . '- ' . json_encode($report_table[1]) . " \033[0m" . PHP_EOL . PHP_EOL;
+    }
+
+    $report_message .= "Check that the number of tables that do not meet the configuration rules is [ $report_table_num ] ." . PHP_EOL;
+    echo $report_message;
+
+    if (isset(CONFIG['use_cache']) && CONFIG['use_cache']) {
+        writeCache($report_message);
+    }
+
+    exit(ERROR_CODE);
+}
+function writeCache(string $report_data): void
+{
+    file_put_contents(CACHE_FILE_PATH, $report_data);
+}
+function handleExit(string $message, int $exit_code): void
+{
+    echo($exit_code ? "\033[32;1m  " : "\033[31;1m  ") . 'SQL Order Check: ' . $message . " \033[0m" . PHP_EOL;
+    exit($exit_code);
+}
