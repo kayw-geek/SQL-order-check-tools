@@ -2,6 +2,8 @@
 
 A tool used to check the order of columns in SQL table structure.
 
+It can help you find out nonstandard tables in a large number of SQL files, and output reports to help you optimize your columns order.
+
 # Configuration description
 
 ```php
@@ -38,7 +40,8 @@ const CONFIG            = [
 # How to use
 
 Put your MySQL table structure file in the specified folder.
-Execute `/src/sql-order-analyse-tools` in the terminal.
+Execute `./src/sql-order-analyse-tools` in the terminal.
+Execute `--clean-cache` clean cache files.
 
 # Analysis report
 
